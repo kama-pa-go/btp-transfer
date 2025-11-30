@@ -2,16 +2,15 @@ package main
 
 import (
 	"btp-transfer/graph"
+	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/handler/extension"
-	"github.com/99designs/gqlgen/graphql/handler/lru"
-	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
-	"github.com/vektah/gqlparser/v2/ast"
+	_ "github.com/lib/pq"
 )
 
 const defaultPort = "8080"
@@ -22,18 +21,34 @@ func main() {
 		port = defaultPort
 	}
 
-	srv := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{}}))
+	// Connection configuration
+	connStr := "user=user password=password dbname=btp_tokens sslmode=disable host=localhost"
 
-	srv.AddTransport(transport.Options{})
-	srv.AddTransport(transport.GET{})
-	srv.AddTransport(transport.POST{})
+	// If docker:
+	if os.Getenv("DB_HOST") != "" {
+		connStr = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+			os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"), os.Getenv("DB_NAME"))
+	}
 
-	srv.SetQueryCache(lru.New[*ast.QueryDocument](1000))
+	// Open connection
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatal("Błąd otwierania bazy:", err)
+	}
+	defer db.Close()
 
-	srv.Use(extension.Introspection{})
-	srv.Use(extension.AutomaticPersistedQuery{
-		Cache: lru.New[string](100),
-	})
+	// Check connection (PING) - check if bd is still alive
+	if err := db.Ping(); err != nil {
+		log.Fatal("Nie udało się połączyć z bazą (Ping):", err)
+	}
+	log.Println("Successfully connected to the database!")
+
+	// Send bd to Transfer function
+	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{
+		Resolvers: &graph.Resolver{
+			DB: db,
+		},
+	}))
 
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	http.Handle("/query", srv)
