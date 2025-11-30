@@ -1,10 +1,9 @@
-version: '3.8'
-
 services:
   app:
     build: .
     ports:
       - "8080:8080"
+    restart: on-failure
     depends_on:
       - db
     environment:

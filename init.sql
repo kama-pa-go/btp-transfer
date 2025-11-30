@@ -4,8 +4,8 @@
 CREATE TABLE IF NOT EXISTS wallets (
                                        address VARCHAR(255) PRIMARY KEY,
     -- No requirements about balance size.
-    -- If preferable INT32 may be changed for BIGINT
-    balance INT32 NOT NULL CHECK (balance >= 0)
+    -- If preferable INTEGER may be changed for BIGINT
+    balance INTEGER NOT NULL CHECK (balance >= 0)
     );
 
 -- Add first wallet with 1,000,000 tokens
