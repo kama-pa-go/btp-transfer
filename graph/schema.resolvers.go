@@ -2,7 +2,6 @@ package graph
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 )
@@ -31,17 +30,33 @@ func (r *mutationResolver) Transfer(ctx context.Context, fromAddress string, toA
 		}
 	}()
 
-	// Downland sender's balance(FOR UPDATE)
+	// -- Prevention of deadlocks: --
+	//Sort addresses: always put them in alphabetical order
+	firstLock := fromAddress
+	secondLock := toAddress
+	if fromAddress > toAddress {
+		firstLock = toAddress
+		secondLock = fromAddress
+	}
+
+	// Block first address
+	// Ignore "haven't found" error-receiver may have been not created yet
+	_, _ = tx.ExecContext(ctx, "SELECT 1 FROM wallets WHERE address = $1 FOR UPDATE", firstLock)
+
+	// Block second address
+	// (but only if is diffrent from the first one)
+	if firstLock != secondLock {
+		_, _ = tx.ExecContext(ctx, "SELECT 1 FROM wallets WHERE address = $1 FOR UPDATE", secondLock)
+	}
+
+	// Downland sender's balance
+	// FOR UPDATE is not necessary but won't hurt either
 	// Other processes are frozen until it's done
 	var currentBalance int32
-	row := tx.QueryRowContext(ctx, "SELECT balance FROM wallets WHERE address = $1 FOR UPDATE", fromAddress)
+	row := tx.QueryRowContext(ctx, "SELECT balance FROM wallets WHERE address = $1", fromAddress)
 	err = row.Scan(&currentBalance)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return 0, fmt.Errorf("sender wallet not found")
-		}
-		return 0, fmt.Errorf("failed to lock sender wallet: %w", err)
-	}
+
+	// -- Deadlocks prevented --
 
 	// Check if balance is sufficient
 	if currentBalance < amount {
