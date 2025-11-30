@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -26,6 +27,8 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 // resetWallet inserts or updates a wallet to a specific balance for testing
 func resetWallet(t *testing.T, db *sql.DB, address string, balance int32) {
+	address = strings.ToLower(address)
+
 	_, err := db.Exec(`
 		INSERT INTO wallets (address, balance) VALUES ($1, $2)
 		ON CONFLICT (address) DO UPDATE SET balance = $2
@@ -70,7 +73,7 @@ func TestConcurrent_Hammer(t *testing.T) {
 
 	// Verify final balance
 	var finalBalance int32
-	err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", address).Scan(&finalBalance)
+	err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(address)).Scan(&finalBalance)
 	if err != nil {
 		t.Fatalf("Failed to verify balance: %v", err)
 	}
@@ -104,55 +107,62 @@ func TestLogic_InsufficientFunds(t *testing.T) {
 
 // 3. The "Threads Scenario" Test: Mixed operations (+1, -4, -7) on small balance.
 // Goal: Verify specific race condition outcome logic required by the task.
+// IMPROVEMENT: We run this scenario multiple times to increase the chance of catching a race condition.
 func TestConcurrent_MixedThreadsScenario(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
 	subject := "0xSUBJECT"
 	external := "0xEXTERNAL"
-	resetWallet(t, db, subject, 10)   // Has 10
-	resetWallet(t, db, external, 100) // Has 100 (to send funds)
-
 	mutation := getResolver(db)
-	var wg sync.WaitGroup
-	wg.Add(3)
 
-	// Op 1: +1 (Receive)
-	go func() {
-		defer wg.Done()
-		_, err := mutation.Transfer(context.Background(), external, subject, 1)
+	iterations := 100
+
+	for i := 0; i < iterations; i++ {
+		resetWallet(t, db, subject, 10)   // Has 10
+		resetWallet(t, db, external, 100) // Has 100 (to send funds)
+
+		var wg sync.WaitGroup
+		wg.Add(3)
+
+		// Op 1: +1 (Receive)
+		go func() {
+			defer wg.Done()
+			_, err := mutation.Transfer(context.Background(), external, subject, 1)
+			if err != nil {
+				t.Errorf("Unexpected error in +1 operation: %v", err)
+			}
+		}()
+
+		// Op 2: -4 (Send)
+		go func() {
+			defer wg.Done()
+			_, _ = mutation.Transfer(context.Background(), subject, external, 4)
+		}()
+
+		// Op 3: -7 (Send)
+		go func() {
+			defer wg.Done()
+			_, _ = mutation.Transfer(context.Background(), subject, external, 7)
+		}()
+
+		wg.Wait()
+
+		var finalBalance int32
+		err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(subject)).Scan(&finalBalance)
 		if err != nil {
-			t.Errorf("Unexpected error in +1 operation: %v", err)
+			t.Fatalf(" - Failed to verify balance in MixedScenario: %v", err)
 		}
-	}()
 
-	// Op 2: -4 (Send)
-	go func() {
-		defer wg.Done()
-		_, _ = mutation.Transfer(context.Background(), subject, external, 4)
-	}()
-
-	// Op 3: -7 (Send)
-	go func() {
-		defer wg.Done()
-		_, _ = mutation.Transfer(context.Background(), subject, external, 7)
-	}()
-
-	wg.Wait()
-
-	var finalBalance int32
-	err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", subject).Scan(&finalBalance)
-	if err != nil {
-		t.Fatalf(" - Failed to verify balance in MixedScenario: %v", err)
+		// Valid outcomes: 0 (all succeed in order), 7 (-7 failed), 4 (-4 failed)
+		switch finalBalance {
+		case 0, 7, 4:
+			// everything fine! :) (but we're not gonna write that out for 100 times)
+		default:
+			t.Errorf(" - Mixed Threads Scenario Failed. Invalid balance: %d", finalBalance)
+		}
 	}
-
-	// Valid outcomes: 0 (all succeed in order), 7 (-7 failed), 4 (-4 failed)
-	switch finalBalance {
-	case 0, 7, 4:
-		fmt.Printf(" + Mixed Threads Scenario Passed. Final Balance: %d (Valid outcome)\n", finalBalance)
-	default:
-		t.Errorf(" - Mixed Threads Scenario Failed. Invalid balance: %d", finalBalance)
-	}
+	fmt.Printf(" + Mixed Threads Scenario Passed. All %d iterations gave outcome 0, 7 or 4", iterations)
 }
 
 // 4. Security Test: Negative Amount
@@ -214,7 +224,7 @@ func TestLogic_SelfTransfer(t *testing.T) {
 
 	// Check final balance
 	var finalBalance int32
-	err = db.QueryRow("SELECT balance FROM wallets WHERE address = $1", me).Scan(&finalBalance)
+	err = db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(me)).Scan(&finalBalance)
 	if err != nil {
 		t.Fatalf(" - Failed to verify balance: %v", err)
 	}
