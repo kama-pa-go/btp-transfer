@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -26,6 +27,8 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 // resetWallet inserts or updates a wallet to a specific balance for testing
 func resetWallet(t *testing.T, db *sql.DB, address string, balance int32) {
+	address = strings.ToLower(address)
+
 	_, err := db.Exec(`
 		INSERT INTO wallets (address, balance) VALUES ($1, $2)
 		ON CONFLICT (address) DO UPDATE SET balance = $2
