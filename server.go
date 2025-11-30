@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -33,11 +34,31 @@ func main() {
 	// Open connection
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
-		log.Fatal("Błąd otwierania bazy:", err)
+		log.Fatal("Database opening failure:", err)
 	}
 	defer db.Close()
 
+	// Wait for connection with DB
+	fmt.Println("Trying to connect with database...")
+
 	// Check connection (PING) - check if bd is still alive
+	// Try 10 times every 2 seconds
+	for i := 0; i < 10; i++ {
+		err = db.Ping()
+		if err == nil {
+			break
+		}
+		fmt.Printf("... database is not ready (%d/10). Waiting 2s...\n", i+1)
+		time.Sleep(2 * time.Second)
+	}
+
+	// If there is no connection after 20s:
+	if err != nil {
+		log.Fatal("Couldn't connect several times.", err)
+	}
+
+	log.Println("Successfully connected to the database!")
+
 	if err := db.Ping(); err != nil {
 		log.Fatal("Nie udało się połączyć z bazą (Ping):", err)
 	}
