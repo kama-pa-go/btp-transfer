@@ -82,3 +82,7 @@ During the implementation, several architectural compromises were made to satisf
 ### 3. Case Insensitivity
 * **Decision:** All addresses are normalized to lowercase using `strings.ToLower()` before processing.
 * **Reasoning:** Ensures that `0xABC` and `0xabc` are treated as the same wallet, consistent with common blockchain address standards.
+
+### 4. Deadlock Prevention (Deterministic Locking)
+* **Decision:** Before processing a transfer, the system locks both the sender and receiver rows in the database using a strict lexicographical order (based on address strings).
+* **Reasoning:** In high-concurrency scenarios, simultaneous transfers between two wallets in opposite directions (A->B and B->A) can cause database deadlocks. By enforcing a global locking order (always lock the "smaller" address first), the system prevents circular dependencies, ensuring thread safety without relying on database retries.
