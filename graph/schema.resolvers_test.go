@@ -73,7 +73,7 @@ func TestConcurrent_Hammer(t *testing.T) {
 
 	// Verify final balance
 	var finalBalance int32
-	err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", address).Scan(&finalBalance)
+	err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(address)).Scan(&finalBalance)
 	if err != nil {
 		t.Fatalf("Failed to verify balance: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestConcurrent_MixedThreadsScenario(t *testing.T) {
 		wg.Wait()
 
 		var finalBalance int32
-		err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", subject).Scan(&finalBalance)
+		err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(subject)).Scan(&finalBalance)
 		if err != nil {
 			t.Fatalf(" - Failed to verify balance in MixedScenario: %v", err)
 		}
@@ -224,7 +224,7 @@ func TestLogic_SelfTransfer(t *testing.T) {
 
 	// Check final balance
 	var finalBalance int32
-	err = db.QueryRow("SELECT balance FROM wallets WHERE address = $1", me).Scan(&finalBalance)
+	err = db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(me)).Scan(&finalBalance)
 	if err != nil {
 		t.Fatalf(" - Failed to verify balance: %v", err)
 	}
