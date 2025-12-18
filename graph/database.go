@@ -5,7 +5,8 @@ import (
 	"fmt"
 )
 
-// ExecuteTransfer zawiera wyłącznie logikę SQL i zarządzanie transakcjami.
+// ExecuteTransfer does not contain aPI logic.
+// Api logic connected to Transfer operation can be found in schema.resolvers.go file
 func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress string, amount int32) (int32, error) {
 	tx, err := r.DB.Begin()
 	if err != nil {
@@ -20,6 +21,7 @@ func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress s
 		} else if err != nil {
 			tx.Rollback()
 		} else {
+			// if there was no errors commit changes
 			err = tx.Commit()
 		}
 	}()
@@ -38,7 +40,7 @@ func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress s
 	_, err = tx.ExecContext(ctx, "SELECT 1 FROM wallets WHERE address = $1 FOR UPDATE", firstLock)
 
 	// Block second address
-	// (but only if is diffrent from the first one)
+	// (but only if is different from the first one)
 	if firstLock != secondLock {
 		_, err = tx.ExecContext(ctx, "SELECT 1 FROM wallets WHERE address = $1 FOR UPDATE", secondLock)
 	}
