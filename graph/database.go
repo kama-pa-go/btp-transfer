@@ -28,6 +28,26 @@ func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress s
 	// Defer function to handle rollback in case of panic or error
 	defer tx.Rollback()
 
+	// Before creating new receiver check (without blocking) whether sender even exists
+	var exists bool
+	err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM wallets WHERE address = $1)", fromAddress).Scan(&exists)
+	if err != nil {
+		return 0, fmt.Errorf("failed to check sender existence: %w", err)
+	}
+	if !exists {
+		return 0, fmt.Errorf("wallet does not exist: %s", fromAddress)
+	}
+
+	// Ensure Receiver Exists
+	// If he does not: create him
+	_, err = tx.ExecContext(ctx, `
+       INSERT INTO wallets (address, balance) VALUES ($1, 0)
+       ON CONFLICT (address) DO NOTHING
+    `, toAddress)
+	if err != nil {
+		return 0, fmt.Errorf("failed to initialize receiver wallet: %w", err)
+	}
+
 	// -- Prevention of deadlocks: --
 	//Sort addresses: always put them in alphabetical order
 	firstLock := fromAddress
@@ -54,12 +74,7 @@ func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress s
 	var currentBalance int64
 	// If row doesn't exist Scan will return sql.ErrNoRows
 	err = tx.QueryRowContext(ctx, "SELECT balance FROM wallets WHERE address = $1", fromAddress).Scan(&currentBalance)
-
 	if err != nil {
-		if err == sql.ErrNoRows {
-			// Wallet does not exist
-			return 0, fmt.Errorf("wallet does not exist: %s", fromAddress)
-		}
 		return 0, fmt.Errorf("failed to get sender balance: %w", err)
 	}
 
