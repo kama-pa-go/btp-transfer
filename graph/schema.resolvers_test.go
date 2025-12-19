@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -11,17 +12,24 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// --- CONFIGURATION ---
-const connStr = "user=user password=password dbname=btp_tokens sslmode=disable host=localhost port=5432"
-
-// --- HELPER FUNCTIONS ---
-
 // setupTestDB connects to the database or fails the test immediately
 func setupTestDB(t *testing.T) *sql.DB {
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		t.Fatalf("Failed to connect to DB: %v", err)
+	testDB := "postgres://user:password@localhost:5432/btp_test?sslmode=disable"
+	if envDSN := os.Getenv("TEST_DATABASE_URL"); envDSN != "" {
+		testDB = envDSN
 	}
+
+	// Open connection
+	db, err := sql.Open("postgres", testDB)
+	if err != nil {
+		t.Fatalf("Failed to connect to  test DB: %v", err)
+	}
+
+	// Check connection
+	if err := db.Ping(); err != nil {
+		t.Fatalf("Failed to ping TEST database. Did you run 'docker-compose up'? Error: %v", err)
+	}
+
 	return db
 }
 
