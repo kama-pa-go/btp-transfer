@@ -196,9 +196,14 @@ func TestSecurity_NegativeAmount(t *testing.T) {
 	_, err := mutation.Transfer(context.Background(), hacker, "0xVICTIM", -50)
 
 	if err == nil {
-		t.Log("- Fail: Transfer accepted negative amount. If this is not intended, add validation.")
+		t.Errorf("Security Breach: System accepted negative transfer amount!")
 	} else {
-		fmt.Println(" + Security Test Passed: Negative amount rejected.")
+		expected := "transfer amount must be positive"
+		if !strings.Contains(err.Error(), expected) {
+			t.Errorf("Expected error containing '%s', got: %v", expected, err)
+		} else {
+			fmt.Println(" + Security Test Passed: Negative amount correctly rejected.")
+		}
 	}
 }
 

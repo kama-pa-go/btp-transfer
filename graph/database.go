@@ -9,6 +9,11 @@ import (
 // ExecuteTransfer does not contain API logic.
 // Api logic connected to Transfer operation can be found in schema.resolvers.go file
 func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress string, amount int64) (int64, error) {
+	// Positive amounts only
+	if amount <= 0 {
+		return 0, fmt.Errorf("transfer amount must be positive, got: %d", amount)
+	}
+
 	// Handle Self-Transfer immediately
 	if fromAddress == toAddress {
 		// If sending to self, balance doesn't change, but we must ensure wallet exists.
