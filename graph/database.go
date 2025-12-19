@@ -21,17 +21,7 @@ func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress s
 	}
 
 	// Defer function to handle rollback in case of panic or error
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p)
-		} else if err != nil {
-			tx.Rollback()
-		} else {
-			// if there was no errors commit changes
-			err = tx.Commit()
-		}
-	}()
+	defer tx.Rollback()
 
 	// -- Prevention of deadlocks: --
 	//Sort addresses: always put them in alphabetical order
@@ -45,9 +35,15 @@ func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress s
 	// Block first address
 	// Ignore "haven't found" error-receiver may have been not created yet
 	_, err = tx.ExecContext(ctx, "SELECT 1 FROM wallets WHERE address = $1 FOR UPDATE", firstLock)
+	if err != nil {
+		return 0, fmt.Errorf("failed to lock first wallet: %w", err)
+	}
 
 	// Block second address
 	_, err = tx.ExecContext(ctx, "SELECT 1 FROM wallets WHERE address = $1 FOR UPDATE", secondLock)
+	if err != nil {
+		return 0, fmt.Errorf("failed to lock second wallet: %w", err)
+	}
 
 	// Downland sender's balance
 	var currentBalance int64
@@ -86,6 +82,10 @@ func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress s
 		return 0, fmt.Errorf("failed to add funds to receiver: %w", err)
 	}
 
+	// If there were no errors (detected by defender before) commit changes
+	if err = tx.Commit(); err != nil {
+		return 0, fmt.Errorf("transaction commit failed: %w", err)
+	}
 	// Return new balance
 	return currentBalance - amount, nil
 }
