@@ -3,9 +3,7 @@
 -- Init wallets table
 CREATE TABLE IF NOT EXISTS wallets (
     address VARCHAR(255) PRIMARY KEY,
-    -- No requirements about balance size.
-    -- If preferable INTEGER may be changed for BIGINT
-    balance INTEGER NOT NULL CHECK (balance >= 0)
+    balance BIGINT NOT NULL CHECK (balance >= 0)
     );
 
 -- Add first wallet with 1,000,000 tokens
@@ -21,5 +19,5 @@ CREATE DATABASE btp_test;
 -- Tworzymy tę samą tabelę w bazie testowej
 CREATE TABLE IF NOT EXISTS wallets (
     address VARCHAR(255) PRIMARY KEY,
-    balance INTEGER NOT NULL CHECK (balance >= 0)
+    balance BIGINT NOT NULL CHECK (balance >= 0)
 );

@@ -2,29 +2,51 @@ package graph
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 )
 
-// ExecuteTransfer does not contain aPI logic.
+// ExecuteTransfer does not contain API logic.
 // Api logic connected to Transfer operation can be found in schema.resolvers.go file
-func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress string, amount int32) (int32, error) {
+func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress string, amount int64) (int64, error) {
+	// Positive amounts only
+	if amount <= 0 {
+		return 0, fmt.Errorf("transfer amount must be positive, got: %d", amount)
+	}
+
+	// Handle Self-Transfer immediately
+	if fromAddress == toAddress {
+		// If sending to self, balance doesn't change, but we must ensure wallet exists.
+		return r.getWalletBalance(ctx, fromAddress)
+	}
+
 	tx, err := r.DB.Begin()
 	if err != nil {
 		return 0, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
 	// Defer function to handle rollback in case of panic or error
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p)
-		} else if err != nil {
-			tx.Rollback()
-		} else {
-			// if there was no errors commit changes
-			err = tx.Commit()
-		}
-	}()
+	defer tx.Rollback()
+
+	// Before creating new receiver check (without blocking) whether sender even exists
+	var exists bool
+	err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM wallets WHERE address = $1)", fromAddress).Scan(&exists)
+	if err != nil {
+		return 0, fmt.Errorf("failed to check sender existence: %w", err)
+	}
+	if !exists {
+		return 0, fmt.Errorf("wallet does not exist: %s", fromAddress)
+	}
+
+	// Ensure Receiver Exists
+	// If he does not: create him
+	_, err = tx.ExecContext(ctx, `
+       INSERT INTO wallets (address, balance) VALUES ($1, 0)
+       ON CONFLICT (address) DO NOTHING
+    `, toAddress)
+	if err != nil {
+		return 0, fmt.Errorf("failed to initialize receiver wallet: %w", err)
+	}
 
 	// -- Prevention of deadlocks: --
 	//Sort addresses: always put them in alphabetical order
@@ -38,19 +60,23 @@ func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress s
 	// Block first address
 	// Ignore "haven't found" error-receiver may have been not created yet
 	_, err = tx.ExecContext(ctx, "SELECT 1 FROM wallets WHERE address = $1 FOR UPDATE", firstLock)
+	if err != nil {
+		return 0, fmt.Errorf("failed to lock first wallet: %w", err)
+	}
 
 	// Block second address
-	// (but only if is different from the first one)
-	if firstLock != secondLock {
-		_, err = tx.ExecContext(ctx, "SELECT 1 FROM wallets WHERE address = $1 FOR UPDATE", secondLock)
+	_, err = tx.ExecContext(ctx, "SELECT 1 FROM wallets WHERE address = $1 FOR UPDATE", secondLock)
+	if err != nil {
+		return 0, fmt.Errorf("failed to lock second wallet: %w", err)
 	}
 
 	// Downland sender's balance
-	// FOR UPDATE is not necessary but won't hurt either
-	// Other processes are frozen until it's done
-	var currentBalance int32
-	row := tx.QueryRowContext(ctx, "SELECT balance FROM wallets WHERE address = $1", fromAddress)
-	err = row.Scan(&currentBalance)
+	var currentBalance int64
+	// If row doesn't exist Scan will return sql.ErrNoRows
+	err = tx.QueryRowContext(ctx, "SELECT balance FROM wallets WHERE address = $1", fromAddress).Scan(&currentBalance)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get sender balance: %w", err)
+	}
 
 	// -- Deadlocks prevented --
 
@@ -76,6 +102,24 @@ func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress s
 		return 0, fmt.Errorf("failed to add funds to receiver: %w", err)
 	}
 
+	// If there were no errors (detected by defender before) commit changes
+	if err = tx.Commit(); err != nil {
+		return 0, fmt.Errorf("transaction commit failed: %w", err)
+	}
 	// Return new balance
 	return currentBalance - amount, nil
+}
+
+// getWalletBalance is a helper function for read-only operations.
+// It checks if the wallet exists and returns its balance.
+func (r *Resolver) getWalletBalance(ctx context.Context, address string) (int64, error) {
+	var balance int64
+	err := r.DB.QueryRowContext(ctx, "SELECT balance FROM wallets WHERE address = $1", address).Scan(&balance)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, fmt.Errorf("wallet does not exist: %s", address)
+		}
+		return 0, fmt.Errorf("failed to fetch balance: %w", err)
+	}
+	return balance, nil
 }

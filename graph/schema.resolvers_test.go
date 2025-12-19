@@ -43,7 +43,7 @@ func cleanTestDB(t *testing.T, db *sql.DB) {
 }
 
 // resetWallet inserts or updates a wallet to a specific balance for testing
-func resetWallet(t *testing.T, db *sql.DB, address string, balance int32) {
+func resetWallet(t *testing.T, db *sql.DB, address string, balance int64) {
 	address = strings.ToLower(address)
 
 	_, err := db.Exec(`
@@ -69,7 +69,7 @@ func TestConcurrent_Hammer(t *testing.T) {
 	defer db.Close()
 
 	address := "0xHAMMER"
-	startBalance := int32(100)
+	startBalance := int64(100)
 	resetWallet(t, db, address, startBalance)
 
 	mutation := getResolver(db)
@@ -89,7 +89,7 @@ func TestConcurrent_Hammer(t *testing.T) {
 	wg.Wait()
 
 	// Verify final balance
-	var finalBalance int32
+	var finalBalance int64
 	err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(address)).Scan(&finalBalance)
 	if err != nil {
 		t.Fatalf("Failed to verify balance: %v", err)
@@ -165,7 +165,7 @@ func TestConcurrent_MixedThreadsScenario(t *testing.T) {
 
 		wg.Wait()
 
-		var finalBalance int32
+		var finalBalance int64
 		err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(subject)).Scan(&finalBalance)
 		if err != nil {
 			t.Fatalf(" - Failed to verify balance in MixedScenario: %v", err)
@@ -196,9 +196,14 @@ func TestSecurity_NegativeAmount(t *testing.T) {
 	_, err := mutation.Transfer(context.Background(), hacker, "0xVICTIM", -50)
 
 	if err == nil {
-		t.Log("- Fail: Transfer accepted negative amount. If this is not intended, add validation.")
+		t.Errorf("Security Breach: System accepted negative transfer amount!")
 	} else {
-		fmt.Println(" + Security Test Passed: Negative amount rejected.")
+		expected := "transfer amount must be positive"
+		if !strings.Contains(err.Error(), expected) {
+			t.Errorf("Expected error containing '%s', got: %v", expected, err)
+		} else {
+			fmt.Println(" + Security Test Passed: Negative amount correctly rejected.")
+		}
 	}
 }
 
@@ -216,7 +221,12 @@ func TestLogic_NonExistentSender(t *testing.T) {
 	if err == nil {
 		t.Errorf(" - Fail: Error expected for non-existent sender, but got success.")
 	} else {
-		fmt.Println(" + Non-Existent Sender Test Passed: Got error as expected.")
+		expectedMsg := "wallet does not exist"
+		if !strings.Contains(err.Error(), expectedMsg) {
+			t.Errorf("Fail: Expected error '%s', got: %v", expectedMsg, err)
+		} else {
+			fmt.Println(" + Non-Existent Sender Test Passed: Got correct 'does not exist' error.")
+		}
 	}
 }
 
@@ -227,7 +237,7 @@ func TestLogic_SelfTransfer(t *testing.T) {
 	defer db.Close()
 
 	me := "0xNARCISSIST" // Wallet who loves only himself ;)
-	startBalance := int32(100)
+	startBalance := int64(100)
 	resetWallet(t, db, me, startBalance)
 
 	mutation := getResolver(db)
@@ -240,7 +250,7 @@ func TestLogic_SelfTransfer(t *testing.T) {
 	}
 
 	// Check final balance
-	var finalBalance int32
+	var finalBalance int64
 	err = db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(me)).Scan(&finalBalance)
 	if err != nil {
 		t.Fatalf(" - Failed to verify balance: %v", err)
