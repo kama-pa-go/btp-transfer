@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 )
 
@@ -46,11 +47,17 @@ func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress s
 	}
 
 	// Downland sender's balance
-	// FOR UPDATE is not necessary but won't hurt either
-	// Other processes are frozen until it's done
 	var currentBalance int64
-	row := tx.QueryRowContext(ctx, "SELECT balance FROM wallets WHERE address = $1", fromAddress)
-	err = row.Scan(&currentBalance)
+	// If row doesn't exist Scan will return sql.ErrNoRows
+	err = tx.QueryRowContext(ctx, "SELECT balance FROM wallets WHERE address = $1", fromAddress).Scan(&currentBalance)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Wallet does not exist
+			return 0, fmt.Errorf("wallet does not exist: %s", fromAddress)
+		}
+		return 0, fmt.Errorf("failed to get sender balance: %w", err)
+	}
 
 	// -- Deadlocks prevented --
 

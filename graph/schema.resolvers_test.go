@@ -216,7 +216,12 @@ func TestLogic_NonExistentSender(t *testing.T) {
 	if err == nil {
 		t.Errorf(" - Fail: Error expected for non-existent sender, but got success.")
 	} else {
-		fmt.Println(" + Non-Existent Sender Test Passed: Got error as expected.")
+		expectedMsg := "wallet does not exist"
+		if !strings.Contains(err.Error(), expectedMsg) {
+			t.Errorf("Fail: Expected error '%s', got: %v", expectedMsg, err)
+		} else {
+			fmt.Println(" + Non-Existent Sender Test Passed: Got correct 'does not exist' error.")
+		}
 	}
 }
 
