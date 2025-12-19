@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-// ExecuteTransfer does not contain aPI logic.
+// ExecuteTransfer does not contain API logic.
 // Api logic connected to Transfer operation can be found in schema.resolvers.go file
 func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress string, amount int64) (int64, error) {
 	// Handle Self-Transfer immediately
@@ -47,10 +47,7 @@ func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress s
 	_, err = tx.ExecContext(ctx, "SELECT 1 FROM wallets WHERE address = $1 FOR UPDATE", firstLock)
 
 	// Block second address
-	// (but only if is different from the first one)
-	if firstLock != secondLock {
-		_, err = tx.ExecContext(ctx, "SELECT 1 FROM wallets WHERE address = $1 FOR UPDATE", secondLock)
-	}
+	_, err = tx.ExecContext(ctx, "SELECT 1 FROM wallets WHERE address = $1 FOR UPDATE", secondLock)
 
 	// Downland sender's balance
 	var currentBalance int64
