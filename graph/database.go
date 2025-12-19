@@ -7,7 +7,7 @@ import (
 
 // ExecuteTransfer does not contain aPI logic.
 // Api logic connected to Transfer operation can be found in schema.resolvers.go file
-func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress string, amount int32) (int32, error) {
+func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress string, amount int64) (int64, error) {
 	tx, err := r.DB.Begin()
 	if err != nil {
 		return 0, fmt.Errorf("failed to begin transaction: %w", err)
@@ -48,7 +48,7 @@ func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress s
 	// Downland sender's balance
 	// FOR UPDATE is not necessary but won't hurt either
 	// Other processes are frozen until it's done
-	var currentBalance int32
+	var currentBalance int64
 	row := tx.QueryRowContext(ctx, "SELECT balance FROM wallets WHERE address = $1", fromAddress)
 	err = row.Scan(&currentBalance)
 

@@ -43,7 +43,7 @@ func cleanTestDB(t *testing.T, db *sql.DB) {
 }
 
 // resetWallet inserts or updates a wallet to a specific balance for testing
-func resetWallet(t *testing.T, db *sql.DB, address string, balance int32) {
+func resetWallet(t *testing.T, db *sql.DB, address string, balance int64) {
 	address = strings.ToLower(address)
 
 	_, err := db.Exec(`
@@ -69,7 +69,7 @@ func TestConcurrent_Hammer(t *testing.T) {
 	defer db.Close()
 
 	address := "0xHAMMER"
-	startBalance := int32(100)
+	startBalance := int64(100)
 	resetWallet(t, db, address, startBalance)
 
 	mutation := getResolver(db)
@@ -89,7 +89,7 @@ func TestConcurrent_Hammer(t *testing.T) {
 	wg.Wait()
 
 	// Verify final balance
-	var finalBalance int32
+	var finalBalance int64
 	err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(address)).Scan(&finalBalance)
 	if err != nil {
 		t.Fatalf("Failed to verify balance: %v", err)
@@ -165,7 +165,7 @@ func TestConcurrent_MixedThreadsScenario(t *testing.T) {
 
 		wg.Wait()
 
-		var finalBalance int32
+		var finalBalance int64
 		err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(subject)).Scan(&finalBalance)
 		if err != nil {
 			t.Fatalf(" - Failed to verify balance in MixedScenario: %v", err)
@@ -227,7 +227,7 @@ func TestLogic_SelfTransfer(t *testing.T) {
 	defer db.Close()
 
 	me := "0xNARCISSIST" // Wallet who loves only himself ;)
-	startBalance := int32(100)
+	startBalance := int64(100)
 	resetWallet(t, db, me, startBalance)
 
 	mutation := getResolver(db)
@@ -240,7 +240,7 @@ func TestLogic_SelfTransfer(t *testing.T) {
 	}
 
 	// Check final balance
-	var finalBalance int32
+	var finalBalance int64
 	err = db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(me)).Scan(&finalBalance)
 	if err != nil {
 		t.Fatalf(" - Failed to verify balance: %v", err)
