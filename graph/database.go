@@ -9,6 +9,12 @@ import (
 // ExecuteTransfer does not contain aPI logic.
 // Api logic connected to Transfer operation can be found in schema.resolvers.go file
 func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress string, amount int64) (int64, error) {
+	// Handle Self-Transfer immediately
+	if fromAddress == toAddress {
+		// If sending to self, balance doesn't change, but we must ensure wallet exists.
+		return r.getWalletBalance(ctx, fromAddress)
+	}
+
 	tx, err := r.DB.Begin()
 	if err != nil {
 		return 0, fmt.Errorf("failed to begin transaction: %w", err)
@@ -85,4 +91,18 @@ func (r *Resolver) ExecuteTransfer(ctx context.Context, fromAddress, toAddress s
 
 	// Return new balance
 	return currentBalance - amount, nil
+}
+
+// getWalletBalance is a helper function for read-only operations.
+// It checks if the wallet exists and returns its balance.
+func (r *Resolver) getWalletBalance(ctx context.Context, address string) (int64, error) {
+	var balance int64
+	err := r.DB.QueryRowContext(ctx, "SELECT balance FROM wallets WHERE address = $1", address).Scan(&balance)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, fmt.Errorf("wallet does not exist: %s", address)
+		}
+		return 0, fmt.Errorf("failed to fetch balance: %w", err)
+	}
+	return balance, nil
 }
