@@ -179,7 +179,7 @@ func TestConcurrent_MixedThreadsScenario(t *testing.T) {
 			t.Errorf(" - Mixed Threads Scenario Failed. Invalid balance: %d", finalBalance)
 		}
 	}
-	fmt.Printf(" + Mixed Threads Scenario Passed. All %d iterations gave outcome 0, 7 or 4", iterations)
+	fmt.Printf(" + Mixed Threads Scenario Passed. All %d iterations gave outcome 0, 7 or 4\n", iterations)
 }
 
 // 4. Security Test: Negative Amount
