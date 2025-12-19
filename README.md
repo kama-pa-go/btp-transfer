@@ -79,7 +79,7 @@ During the implementation, several architectural compromises were made to satisf
 * **Reasoning:** The assignment restricted adding "additional functionality" (e.g., a `CreateWallet` mutation). Therefore, wallet creation is implicit during the first transfer.
 * **Risk:** In a production environment, this is considered a security risk (typos in addresses lead to lost funds). However, it was a necessary compromise to fulfill the requirements without expanding the API surface. Another risk is possibility of races in a case when two processes want to send mony to tha same new adress.
 
-## Prevention of second risk:  Race Condition Prevention
+#### Prevention of second risk:  Race Condition Prevention
 * **Decision:** Implemented a "Pre-initialization" (Upsert) step before Locking.
 * **Reasoning:** Standard `SELECT ... FOR UPDATE` does not lock rows that do not exist yet. To prevent race conditions when creating new wallets under heavy load, the system performs an `INSERT ... ON CONFLICT DO NOTHING` for the receiver *before* attempting to lock the rows. This guarantees that locks are always applied to existing records.
 
