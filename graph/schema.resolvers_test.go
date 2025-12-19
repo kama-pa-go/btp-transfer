@@ -30,7 +30,16 @@ func setupTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("Failed to ping TEST database. Did you run 'docker-compose up'? Error: %v", err)
 	}
 
+	cleanTestDB(t, db) // Clean db before return
 	return db
+}
+
+// cleanTestDB removes all data from tables to ensure test isolation
+func cleanTestDB(t *testing.T, db *sql.DB) {
+	_, err := db.Exec("TRUNCATE TABLE wallets")
+	if err != nil {
+		t.Fatalf("Failed to clean database: %v", err)
+	}
 }
 
 // resetWallet inserts or updates a wallet to a specific balance for testing
