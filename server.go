@@ -1,12 +1,12 @@
 package main
 
 import (
-	"btp-transfer/config"
 	"btp-transfer/graph"
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -17,17 +17,24 @@ import (
 const defaultPort = "8080"
 
 func main() {
-	// Open connection and check whether configuration is correct
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = defaultPort
 	}
-	log.Printf("Configuration loaded. Port: %s", cfg.Port)
 
-	// Use cfg.DatabaseURL to connect with database
-	db, err := sql.Open("postgres", cfg.DatabaseURL)
+	// Connection configuration
+	connStr := "user=user password=password dbname=btp_tokens sslmode=disable host=localhost"
+
+	// If docker:
+	if os.Getenv("DB_HOST") != "" {
+		connStr = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+			os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"), os.Getenv("DB_NAME"))
+	}
+
+	// Open connection
+	db, err := sql.Open("postgres", connStr)
 	if err != nil {
-		log.Fatal("Error opening database:", err)
+		log.Fatal("Database opening failure:", err)
 	}
 	defer db.Close()
 
@@ -67,6 +74,6 @@ func main() {
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	http.Handle("/query", srv)
 
-	log.Printf("connect to http://localhost:%s/ for GraphQL playground", cfg.Port)
-	log.Fatal(http.ListenAndServe(":"+cfg.Port, nil))
+	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

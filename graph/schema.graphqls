@@ -2,8 +2,6 @@
 #
 # https://gqlgen.com/getting-started/
 
-scalar Int64
-
 type Todo {
   id: ID!
   text: String!
@@ -22,7 +20,7 @@ input NewTodo {
 }
 
 type Mutation {
-    transfer(fromAddress: String!, toAddress: String!, amount: Int64!): Int64!
+    transfer(from_address: String!, to_address: String!, amount: Int!): Int!
 }
 
 type Query {

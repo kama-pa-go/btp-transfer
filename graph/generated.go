@@ -48,7 +48,7 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Mutation struct {
-		Transfer func(childComplexity int, fromAddress string, toAddress string, amount int64) int
+		Transfer func(childComplexity int, fromAddress string, toAddress string, amount int32) int
 	}
 
 	Query struct {
@@ -69,7 +69,7 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
-	Transfer(ctx context.Context, fromAddress string, toAddress string, amount int64) (int64, error)
+	Transfer(ctx context.Context, fromAddress string, toAddress string, amount int32) (int32, error)
 }
 type QueryResolver interface {
 	Dummy(ctx context.Context) (*string, error)
@@ -104,7 +104,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.Transfer(childComplexity, args["fromAddress"].(string), args["toAddress"].(string), args["amount"].(int64)), true
+		return e.complexity.Mutation.Transfer(childComplexity, args["from_address"].(string), args["to_address"].(string), args["amount"].(int32)), true
 
 	case "Query.dummy":
 		if e.complexity.Query.Dummy == nil {
@@ -279,17 +279,17 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 func (ec *executionContext) field_Mutation_transfer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "fromAddress", ec.unmarshalNString2string)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "from_address", ec.unmarshalNString2string)
 	if err != nil {
 		return nil, err
 	}
-	args["fromAddress"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "toAddress", ec.unmarshalNString2string)
+	args["from_address"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "to_address", ec.unmarshalNString2string)
 	if err != nil {
 		return nil, err
 	}
-	args["toAddress"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "amount", ec.unmarshalNInt642int64)
+	args["to_address"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "amount", ec.unmarshalNInt2int32)
 	if err != nil {
 		return nil, err
 	}
@@ -368,10 +368,10 @@ func (ec *executionContext) _Mutation_transfer(ctx context.Context, field graphq
 		ec.fieldContext_Mutation_transfer,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().Transfer(ctx, fc.Args["fromAddress"].(string), fc.Args["toAddress"].(string), fc.Args["amount"].(int64))
+			return ec.resolvers.Mutation().Transfer(ctx, fc.Args["from_address"].(string), fc.Args["to_address"].(string), fc.Args["amount"].(int32))
 		},
 		nil,
-		ec.marshalNInt642int64,
+		ec.marshalNInt2int32,
 		true,
 		true,
 	)
@@ -384,7 +384,7 @@ func (ec *executionContext) fieldContext_Mutation_transfer(ctx context.Context, 
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int64 does not have child fields")
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	defer func() {
@@ -2789,14 +2789,14 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
-func (ec *executionContext) unmarshalNInt642int64(ctx context.Context, v any) (int64, error) {
-	res, err := graphql.UnmarshalInt64(v)
+func (ec *executionContext) unmarshalNInt2int32(ctx context.Context, v any) (int32, error) {
+	res, err := graphql.UnmarshalInt32(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNInt642int64(ctx context.Context, sel ast.SelectionSet, v int64) graphql.Marshaler {
+func (ec *executionContext) marshalNInt2int32(ctx context.Context, sel ast.SelectionSet, v int32) graphql.Marshaler {
 	_ = sel
-	res := graphql.MarshalInt64(v)
+	res := graphql.MarshalInt32(v)
 	if res == graphql.Null {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")

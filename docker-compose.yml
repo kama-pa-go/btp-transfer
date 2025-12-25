@@ -7,8 +7,11 @@ services:
     depends_on:
       - db
     environment:
-      - DATABASE_URL=postgres://user:password@db:5432/btp_tokens?sslmode=disable
-      - PORT=8080
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=btp_tokens
   db:
     image: postgres:16-alpine
     container_name: btp_postgres
