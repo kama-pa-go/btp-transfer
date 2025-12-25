@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -11,22 +12,38 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// --- CONFIGURATION ---
-const connStr = "user=user password=password dbname=btp_tokens sslmode=disable host=localhost port=5432"
-
-// --- HELPER FUNCTIONS ---
-
 // setupTestDB connects to the database or fails the test immediately
 func setupTestDB(t *testing.T) *sql.DB {
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		t.Fatalf("Failed to connect to DB: %v", err)
+	testDB := "postgres://user:password@localhost:5432/btp_test?sslmode=disable"
+	if envDSN := os.Getenv("TEST_DATABASE_URL"); envDSN != "" {
+		testDB = envDSN
 	}
+
+	// Open connection
+	db, err := sql.Open("postgres", testDB)
+	if err != nil {
+		t.Fatalf("Failed to connect to  test DB: %v", err)
+	}
+
+	// Check connection
+	if err := db.Ping(); err != nil {
+		t.Fatalf("Failed to ping TEST database. Did you run 'docker-compose up'? Error: %v", err)
+	}
+
+	cleanTestDB(t, db) // Clean db before return
 	return db
 }
 
+// cleanTestDB removes all data from tables to ensure test isolation
+func cleanTestDB(t *testing.T, db *sql.DB) {
+	_, err := db.Exec("TRUNCATE TABLE wallets")
+	if err != nil {
+		t.Fatalf("Failed to clean database: %v", err)
+	}
+}
+
 // resetWallet inserts or updates a wallet to a specific balance for testing
-func resetWallet(t *testing.T, db *sql.DB, address string, balance int32) {
+func resetWallet(t *testing.T, db *sql.DB, address string, balance int64) {
 	address = strings.ToLower(address)
 
 	_, err := db.Exec(`
@@ -52,7 +69,7 @@ func TestConcurrent_Hammer(t *testing.T) {
 	defer db.Close()
 
 	address := "0xHAMMER"
-	startBalance := int32(100)
+	startBalance := int64(100)
 	resetWallet(t, db, address, startBalance)
 
 	mutation := getResolver(db)
@@ -72,7 +89,7 @@ func TestConcurrent_Hammer(t *testing.T) {
 	wg.Wait()
 
 	// Verify final balance
-	var finalBalance int32
+	var finalBalance int64
 	err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(address)).Scan(&finalBalance)
 	if err != nil {
 		t.Fatalf("Failed to verify balance: %v", err)
@@ -148,7 +165,7 @@ func TestConcurrent_MixedThreadsScenario(t *testing.T) {
 
 		wg.Wait()
 
-		var finalBalance int32
+		var finalBalance int64
 		err := db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(subject)).Scan(&finalBalance)
 		if err != nil {
 			t.Fatalf(" - Failed to verify balance in MixedScenario: %v", err)
@@ -162,7 +179,7 @@ func TestConcurrent_MixedThreadsScenario(t *testing.T) {
 			t.Errorf(" - Mixed Threads Scenario Failed. Invalid balance: %d", finalBalance)
 		}
 	}
-	fmt.Printf(" + Mixed Threads Scenario Passed. All %d iterations gave outcome 0, 7 or 4", iterations)
+	fmt.Printf(" + Mixed Threads Scenario Passed. All %d iterations gave outcome 0, 7 or 4\n", iterations)
 }
 
 // 4. Security Test: Negative Amount
@@ -179,9 +196,14 @@ func TestSecurity_NegativeAmount(t *testing.T) {
 	_, err := mutation.Transfer(context.Background(), hacker, "0xVICTIM", -50)
 
 	if err == nil {
-		t.Log("- Fail: Transfer accepted negative amount. If this is not intended, add validation.")
+		t.Errorf("Security Breach: System accepted negative transfer amount!")
 	} else {
-		fmt.Println(" + Security Test Passed: Negative amount rejected.")
+		expected := "transfer amount must be positive"
+		if !strings.Contains(err.Error(), expected) {
+			t.Errorf("Expected error containing '%s', got: %v", expected, err)
+		} else {
+			fmt.Println(" + Security Test Passed: Negative amount correctly rejected.")
+		}
 	}
 }
 
@@ -199,7 +221,12 @@ func TestLogic_NonExistentSender(t *testing.T) {
 	if err == nil {
 		t.Errorf(" - Fail: Error expected for non-existent sender, but got success.")
 	} else {
-		fmt.Println(" + Non-Existent Sender Test Passed: Got error as expected.")
+		expectedMsg := "wallet does not exist"
+		if !strings.Contains(err.Error(), expectedMsg) {
+			t.Errorf("Fail: Expected error '%s', got: %v", expectedMsg, err)
+		} else {
+			fmt.Println(" + Non-Existent Sender Test Passed: Got correct 'does not exist' error.")
+		}
 	}
 }
 
@@ -210,7 +237,7 @@ func TestLogic_SelfTransfer(t *testing.T) {
 	defer db.Close()
 
 	me := "0xNARCISSIST" // Wallet who loves only himself ;)
-	startBalance := int32(100)
+	startBalance := int64(100)
 	resetWallet(t, db, me, startBalance)
 
 	mutation := getResolver(db)
@@ -223,7 +250,7 @@ func TestLogic_SelfTransfer(t *testing.T) {
 	}
 
 	// Check final balance
-	var finalBalance int32
+	var finalBalance int64
 	err = db.QueryRow("SELECT balance FROM wallets WHERE address = $1", strings.ToLower(me)).Scan(&finalBalance)
 	if err != nil {
 		t.Fatalf(" - Failed to verify balance: %v", err)

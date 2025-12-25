@@ -71,13 +71,17 @@ Returns the updated balance of the `from_address`.
 During the implementation, several architectural compromises were made to satisfy the specific requirements of the assignment while keeping the codebase simple.
 
 ### 1. Data Types (`int32` vs `BigInt`)
-* **Decision:** The API uses `int32` for token amounts.
-* **Reasoning:** While financial systems and databases (`BIGINT` in PostgreSQL) typically use 64-bit integers or arbitrary-precision strings to handle large token supplies, `int32` was chosen here for simplicity and compatibility with the default GraphQL scalar mapping in the generated Go code. It is sufficient for the initial requirement of 1,000,000 tokens.
+* **Decision:** The API uses `int64` for token amounts.
+* **Reasoning:** Financial systems require precision and range beyond standard 32-bit integers. We migrated from Int32 to Int64 (mapped to PostgreSQL BIGINT) to ensure scalability and adhere to industry standards, overcoming the default GraphQL Int limitations.
 
 ### 2. Automatic Wallet Creation (Implicit Registration)
 * **Decision:** If a transfer is made to a non-existent `to_address`, the system automatically creates that wallet using an `UPSERT` strategy (`INSERT ... ON CONFLICT`).
 * **Reasoning:** The assignment restricted adding "additional functionality" (e.g., a `CreateWallet` mutation). Therefore, wallet creation is implicit during the first transfer.
-* **Risk:** In a production environment, this is considered a security risk (typos in addresses lead to lost funds). However, it was a necessary compromise to fulfill the requirements without expanding the API surface.
+* **Risk:** In a production environment, this is considered a security risk (typos in addresses lead to lost funds). However, it was a necessary compromise to fulfill the requirements without expanding the API surface. Another risk is possibility of races in a case when two processes want to send mony to tha same new adress.
+
+#### Prevention of second risk:  Race Condition Prevention
+* **Decision:** Implemented a "Pre-initialization" (Upsert) step before Locking.
+* **Reasoning:** Standard `SELECT ... FOR UPDATE` does not lock rows that do not exist yet. To prevent race conditions when creating new wallets under heavy load, the system performs an `INSERT ... ON CONFLICT DO NOTHING` for the receiver *before* attempting to lock the rows. This guarantees that locks are always applied to existing records.
 
 ### 3. Case Insensitivity
 * **Decision:** All addresses are normalized to lowercase using `strings.ToLower()` before processing.
@@ -86,3 +90,15 @@ During the implementation, several architectural compromises were made to satisf
 ### 4. Deadlock Prevention (Deterministic Locking)
 * **Decision:** Before processing a transfer, the system locks both the sender and receiver rows in the database using a strict lexicographical order (based on address strings).
 * **Reasoning:** In high-concurrency scenarios, simultaneous transfers between two wallets in opposite directions (A->B and B->A) can cause database deadlocks. By enforcing a global locking order (always lock the "smaller" address first), the system prevents circular dependencies, ensuring thread safety without relying on database retries.
+
+### 5. Transaction Safety (Explicit Commit)
+* **Decision:** Transactions are committed explicitly at the end of the operation, not in a `defer` block.
+* **Reasoning:** Relying on deferred commits can lead to "phantom success" states where the function returns success, but the commit fails silently afterwards. Explicit commits ensure that any database failure is caught and reported to the user.
+
+### 6. Input Validation & Security
+* **Decision:** Strict server-side validation rejects negative amounts and zero-value transfers.
+* **Reasoning:** This prevents potential exploits (e.g., stealing funds via negative transfers) and database spam. Validation logic is placed at the entry point of the service layer.
+
+### 7. Self-Transfer Optimization
+* **Decision:** Transfers where `from_address` equals `to_address` bypass the heavy transaction logic.
+* **Reasoning:** Since the net balance change is zero, opening a transaction and locking rows is unnecessary overhead. These requests are handled by a lightweight read-only check.
