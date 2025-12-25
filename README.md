@@ -1,4 +1,4 @@
-> **Note:** This project was developed as a solution to the recruitment task for **Beside The Park** company.
+> **Note:** This project was developed as a solution to the recruitment task for **Beside The Park** company. 
 
 # BTP Token Transfer API
 
