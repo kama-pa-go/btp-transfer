@@ -54,6 +54,27 @@ go test -v ./graph/...
 
 ---
 
+### Database Initialization Strategy (Updated)
+
+The project structure has been refactored to separate schema definitions (`schema.sql`) from data seeding (`init.sql`).
+
+**For Automated Tests:**
+The test suite now uses a **self-contained setup** (via `TestMain`). It automatically:
+1.  Creates the `btp_test` database if it doesn't exist.
+2.  Applies the latest structure from `schema.sql`.
+3.  Cleans the state before every test.
+
+**Why this change?**
+Previously, updating the test database schema required manually resetting Docker volumes (`docker-compose down -v`), because PostgreSQL containers only execute initialization scripts when the data directory is empty. While resetting volumes is still a valid method to enforce schema updates, the new approach eliminates this manual step for testing, ensuring that `go test` always runs against the current code version regardless of the local Docker state.
+
+**Note for Development:**
+For the main application (non-test environment), if you modify `schema.sql` or `init.sql`, you still need to reset volumes to see changes:
+```bash
+docker-compose down -v
+docker-compose up --build
+
+--
+
 ## API Usage Example
 
 To transfer tokens, execute the following mutation in the GraphQL Playground:

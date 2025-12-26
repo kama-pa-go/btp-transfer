@@ -12,26 +12,79 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// setupTestDB connects to the database or fails the test immediately
-func setupTestDB(t *testing.T) *sql.DB {
-	testDB := "postgres://user:password@localhost:5432/btp_test?sslmode=disable"
-	if envDSN := os.Getenv("TEST_DATABASE_URL"); envDSN != "" {
-		testDB = envDSN
-	}
+// Global variable test_db address
+var testDB *sql.DB
 
-	// Open connection
-	db, err := sql.Open("postgres", testDB)
+// TestMain is runed at the very beginning
+func TestMain(m *testing.M) {
+	// Global setup
+	db, err := setupGlobalTestDB()
 	if err != nil {
-		t.Fatalf("Failed to connect to  test DB: %v", err)
+		fmt.Printf("Critical Setup Error: %v\n", err)
+		os.Exit(1)
+	}
+	testDB = db
+
+	// Run tests
+	code := m.Run()
+
+	// Teardown
+	testDB.Close()
+	os.Exit(code)
+}
+
+// setupGlobalTestDB builds test_db and loads schema.sql inside
+func setupGlobalTestDB() (*sql.DB, error) {
+	// Connect to postgres
+	adminConnStr := "postgres://user:password@localhost:5432/postgres?sslmode=disable"
+
+	dbAdmin, err := sql.Open("postgres", adminConnStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to admin DB: %w", err)
 	}
 
-	// Check connection
+	// Ignore error that db may already exists
+	_, _ = dbAdmin.Exec("CREATE DATABASE btp_test")
+	dbAdmin.Close()
+
+	// Connect to test_db
+	testDBDSN := "postgres://user:password@localhost:5432/btp_test?sslmode=disable"
+	if envDSN := os.Getenv("TEST_DATABASE_URL"); envDSN != "" {
+		testDBDSN = envDSN
+	}
+
+	db, err := sql.Open("postgres", testDBDSN)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to test DB: %w", err)
+	}
+
+	// Check if db is alive
 	if err := db.Ping(); err != nil {
-		t.Fatalf("Failed to ping TEST database. Did you run 'docker-compose up'? Error: %v", err)
+		return nil, fmt.Errorf("failed to ping test DB: %w", err)
 	}
 
-	cleanTestDB(t, db) // Clean db before return
-	return db
+	// Load schema.sql
+	schemaContent, err := os.ReadFile("../schema.sql")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read schema.sql: %w", err)
+	}
+
+	if _, err := db.Exec(string(schemaContent)); err != nil {
+		return nil, fmt.Errorf("failed to apply schema: %w", err)
+	}
+
+	return db, nil
+}
+
+// Helper function that cleans db before every test
+func getDB(t *testing.T) *sql.DB {
+	if testDB == nil {
+		t.Fatal("Database not initialized! Check TestMain.")
+	}
+
+	// Clean data
+	cleanTestDB(t, testDB)
+	return testDB
 }
 
 // cleanTestDB removes all data from tables to ensure test isolation
@@ -65,8 +118,7 @@ func getResolver(db *sql.DB) MutationResolver {
 // 1. The "Hammer" Test: 100 concurrent threads withdraw 1 token each.
 // Goal: Verify database locking mechanism works under high load.
 func TestConcurrent_Hammer(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	db := getDB(t)
 
 	address := "0xHAMMER"
 	startBalance := int64(100)
@@ -105,8 +157,7 @@ func TestConcurrent_Hammer(t *testing.T) {
 // 2. Logic Test: Insufficient Funds
 // Goal: Verify that the system prevents spending more than you have.
 func TestLogic_InsufficientFunds(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	db := getDB(t)
 
 	sender := "0xPOOR"
 	resetWallet(t, db, sender, 10) // Wallet has 10
@@ -126,8 +177,7 @@ func TestLogic_InsufficientFunds(t *testing.T) {
 // Goal: Verify specific race condition outcome logic required by the task.
 // IMPROVEMENT: We run this scenario multiple times to increase the chance of catching a race condition.
 func TestConcurrent_MixedThreadsScenario(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	db := getDB(t)
 
 	subject := "0xSUBJECT"
 	external := "0xEXTERNAL"
@@ -185,8 +235,7 @@ func TestConcurrent_MixedThreadsScenario(t *testing.T) {
 // 4. Security Test: Negative Amount
 // Goal: Ensure users cannot steal money by sending negative amounts.
 func TestSecurity_NegativeAmount(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	db := getDB(t)
 
 	hacker := "0xHACKER"
 	resetWallet(t, db, hacker, 100)
@@ -210,8 +259,7 @@ func TestSecurity_NegativeAmount(t *testing.T) {
 // 5. Edge Case: Non-Existent Sender
 // Goal: Verify graceful error handling when wallet is missing.
 func TestLogic_NonExistentSender(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	db := getDB(t)
 
 	mutation := getResolver(db)
 
@@ -233,8 +281,7 @@ func TestLogic_NonExistentSender(t *testing.T) {
 // 6. Edge Case: Self-Transfer
 // Goal: Verify that sending money to yourself doesn't result in deadlock or lost funds.
 func TestLogic_SelfTransfer(t *testing.T) {
-	db := setupTestDB(t)
-	defer db.Close()
+	db := getDB(t)
 
 	me := "0xNARCISSIST" // Wallet who loves only himself ;)
 	startBalance := int64(100)
