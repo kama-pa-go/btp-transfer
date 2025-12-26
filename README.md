@@ -11,6 +11,15 @@ This project assumes an ERC20-like token environment where wallets are identifie
 ### Prerequisites
 * Docker & Docker Compose
 
+### Configuration
+
+The application uses environment variables for configuration (database credentials, ports). Before running the application, you must create a `.env` file in the root directory.
+
+1.  Create a `.env` file based on the provided example:
+    ```bash
+    cp .env.example .env
+    ```
+2.  (Optional) Edit the `.env` file to match your local environment settings if they differ from the defaults.
 
 ### Start the Application
 The easiest way to run the database and the backend server is to use Docker Compose:
