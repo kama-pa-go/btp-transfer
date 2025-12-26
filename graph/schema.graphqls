@@ -1,28 +1,7 @@
-# GraphQL schema example
-#
-# https://gqlgen.com/getting-started/
-
 scalar Int64
 
-type Todo {
-  id: ID!
-  text: String!
-  done: Boolean!
-  user: User!
-}
-
-type User {
-  id: ID!
-  name: String!
-}
-
-input NewTodo {
-  text: String!
-  userId: String!
-}
-
 type Mutation {
-    transfer(fromAddress: String!, toAddress: String!, amount: Int64!): Int64!
+    transfer(from_address: String!, to_address: String!, amount: Int64!): Int64!
 }
 
 type Query {
