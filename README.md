@@ -1,4 +1,4 @@
-> **Note:** This project was developed as a solution to the recruitment task for **Beside The Park** company.
+> **Note:** This project was developed as a solution to the recruitment task for **Beside The Park** company. 
 
 # BTP Token Transfer API
 
@@ -11,6 +11,15 @@ This project assumes an ERC20-like token environment where wallets are identifie
 ### Prerequisites
 * Docker & Docker Compose
 
+### Configuration
+
+The application uses environment variables for configuration (database credentials, ports). Before running the application, you must create a `.env` file in the root directory.
+
+1.  Create a `.env` file based on the provided example:
+    ```bash
+    cp .env.example .env
+    ```
+2.  (Optional) Edit the `.env` file to match your local environment settings if they differ from the defaults.
 
 ### Start the Application
 The easiest way to run the database and the backend server is to use Docker Compose:
@@ -44,6 +53,27 @@ go test -v ./graph/...
 * **Edge Cases:** Insufficient funds, negative amounts, self-transfers, non-existent senders.
 
 ---
+
+### Database Initialization Strategy (Updated)
+
+The project structure has been refactored to separate schema definitions (`schema.sql`) from data seeding (`init.sql`).
+
+**For Automated Tests:**
+The test suite now uses a **self-contained setup** (via `TestMain`). It automatically:
+1.  Creates the `btp_test` database if it doesn't exist.
+2.  Applies the latest structure from `schema.sql`.
+3.  Cleans the state before every test.
+
+**Why this change?**
+Previously, updating the test database schema required manually resetting Docker volumes (`docker-compose down -v`), because PostgreSQL containers only execute initialization scripts when the data directory is empty. While resetting volumes is still a valid method to enforce schema updates, the new approach eliminates this manual step for testing, ensuring that `go test` always runs against the current code version regardless of the local Docker state.
+
+**Note for Development:**
+For the main application (non-test environment), if you modify `schema.sql` or `init.sql`, you still need to reset volumes to see changes:
+```bash
+docker-compose down -v
+docker-compose up --build
+
+--
 
 ## API Usage Example
 

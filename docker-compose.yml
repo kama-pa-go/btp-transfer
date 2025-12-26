@@ -2,27 +2,30 @@ services:
   app:
     build: .
     ports:
-      - "8080:8080"
+      - "${PORT}:${PORT}"
     restart: on-failure
     depends_on:
       - db
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgres://user:password@db:5432/btp_tokens?sslmode=disable
-      - PORT=8080
+      - DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@db:${DB_PORT}/${DB_NAME}?sslmode=disable
+      - PORT=${PORT}
   db:
     image: postgres:16-alpine
     container_name: btp_postgres
     ports:
-      - "5432:5432"
+      - "${DB_PORT}:5432"
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=btp_tokens
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
     volumes:
       # To prevent erasing data after continer restart
       - postgres_data:/var/lib/postgresql/data
       # To initial tables
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/02_init.sql
 
 volumes:
   postgres_data:
