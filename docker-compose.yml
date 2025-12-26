@@ -22,7 +22,8 @@ services:
       # To prevent erasing data after continer restart
       - postgres_data:/var/lib/postgresql/data
       # To initial tables
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/02_init.sql
 
 volumes:
   postgres_data:
