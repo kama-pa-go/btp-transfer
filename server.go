@@ -52,11 +52,6 @@ func main() {
 
 	log.Println("Successfully connected to the database!")
 
-	if err := db.Ping(); err != nil {
-		log.Fatal("Failed to connect to database (Ping):", err)
-	}
-	log.Println("Successfully connected to the database!")
-
 	// Send bd to Transfer function
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{
 		Resolvers: &graph.Resolver{
