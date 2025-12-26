@@ -53,7 +53,7 @@ func main() {
 	log.Println("Successfully connected to the database!")
 
 	if err := db.Ping(); err != nil {
-		log.Fatal("Nie udało się połączyć z bazą (Ping):", err)
+		log.Fatal("Failed to connect to database (Ping):", err)
 	}
 	log.Println("Successfully connected to the database!")
 
