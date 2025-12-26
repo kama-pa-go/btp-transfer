@@ -95,6 +95,14 @@ func cleanTestDB(t *testing.T, db *sql.DB) {
 	}
 }
 
+// cleanTestDB removes all data from tables to ensure test isolation
+func cleanTestDB(t *testing.T, db *sql.DB) {
+	_, err := db.Exec("TRUNCATE TABLE wallets")
+	if err != nil {
+		t.Fatalf("Failed to clean database: %v", err)
+	}
+}
+
 // resetWallet inserts or updates a wallet to a specific balance for testing
 func resetWallet(t *testing.T, db *sql.DB, address string, balance int64) {
 	address = strings.ToLower(address)

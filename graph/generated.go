@@ -91,7 +91,9 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
+
 		return e.complexity.Mutation.Transfer(childComplexity, args["from_address"].(string), args["to_address"].(string), args["amount"].(int64)), true
+
 
 	case "Query.dummy":
 		if e.complexity.Query.Dummy == nil {
@@ -226,12 +228,12 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 func (ec *executionContext) field_Mutation_transfer_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "from_address", ec.unmarshalNString2string)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "fromAddress", ec.unmarshalNString2string)
 	if err != nil {
 		return nil, err
 	}
-	args["from_address"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "to_address", ec.unmarshalNString2string)
+	args["fromAddress"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "toAddress", ec.unmarshalNString2string)
 	if err != nil {
 		return nil, err
 	}
